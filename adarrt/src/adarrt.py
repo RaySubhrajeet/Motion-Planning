@@ -5,6 +5,7 @@ import time
 import adapy
 import numpy as np
 import rospy
+import copy
 
 
 class AdaRRT():
@@ -104,12 +105,17 @@ class AdaRRT():
             goal on success. On failure, returns None.
         """
         for k in range(self.max_iter):
+            print("iteration: " + str(k))
             # FILL in your code here
-
+            sample = self._get_random_sample()
+            nearest_neighbor = self._get_nearest_neighbor(sample)
+            new_node = self._extend_sample(sample, neighbor=nearest_neighbor)
             if new_node and self._check_for_completion(new_node):
                 # FILL in your code here
-
+                new_node.children.append(self.goal)
+                path = self._trace_path_from_start()
                 return path
+        return None
 
         print("Failed to find path from {0} to {1} after {2} iterations!".format(
             self.start.state, self.goal.state, self.max_iter))
@@ -122,6 +128,14 @@ class AdaRRT():
             space.
         """
         # FILL in your code here
+        sample = np.zeros(len(self.joint_lower_limits))
+        for i in range(len(self.joint_lower_limits)):
+            sample[i] = np.random.uniform(self.joint_lower_limits[i], self.joint_upper_limits[i], 1)
+        return sample
+
+    def _get_dist(self, node1, sample):
+        dist = np.sqrt(sum(np.square(sample-node1)))
+        return dist
 
     def _get_nearest_neighbor(self, sample):
         """
@@ -132,6 +146,14 @@ class AdaRRT():
         :returns: A Node object for the closest neighbor.
         """
         # FILL in your code here
+        min_dist = 1000000000
+        nearest_node = None
+        for node in self.start:
+            dist = self._get_dist(node.state, sample)
+            if dist < min_dist:
+                min_dist = dist
+                nearest_node = node
+        return nearest_node
 
     def _extend_sample(self, sample, neighbor):
         """
@@ -145,6 +167,15 @@ class AdaRRT():
         :returns: The new Node object. On failure (collision), returns None.
         """
         # FILL in your code here
+        neighbor_vec = neighbor.state
+        direct = sample-neighbor_vec
+        direct = direct/np.linalg.norm(direct)
+        new_node_state = direct*self.step_size + neighbor_vec
+        if self._check_for_collision(new_node_state) is True:
+            return None
+        new_node = AdaRRT.Node(new_node_state, neighbor)
+        neighbor.children.append(new_node)
+        return new_node
 
     def _check_for_completion(self, node):
         """
@@ -154,6 +185,27 @@ class AdaRRT():
         :returns: Boolean indicating node is close enough for completion.
         """
         # FILL in your code here
+        dist = self._get_dist(node.state, self.goal.state)
+        if dist < self.goal_precision:
+            return True
+        return False
+
+    def _trace_path_helper(self, curr_node, target_node, path):
+        curr_path = copy.deepcopy(path)
+        curr_path.append(curr_node.state)
+        if len(curr_node.children) == 0:
+            if np.array_equal(curr_node.state, target_node.state):
+                return curr_path
+            else:
+                return None
+        if np.array_equal(curr_node.state, target_node.state):
+            return curr_path
+        else:
+            for child in curr_node.children:
+                return_path = self._trace_path_helper(child, target_node, curr_path)
+                if return_path != None:
+                    return return_path
+            return None
 
     def _trace_path_from_start(self, node=None):
         """
@@ -165,6 +217,11 @@ class AdaRRT():
             ending at the goal state.
         """
         # FILL in your code here
+        target = node
+        if target == None:
+            target = self.goal
+        path = self._trace_path_helper(self.start, target, [])
+        return path
 
     def _check_for_collision(self, sample):
         """
@@ -204,7 +261,6 @@ def main():
     world = ada.get_world()
     can = world.add_body_from_urdf(canURDFUri, sodaCanPose)
     table = world.add_body_from_urdf(tableURDFUri, tablePose)
-
     # add collision constraints
     collision_free_constraint = ada.set_up_collision_detection(
             ada.get_arm_state_space(),
@@ -214,7 +270,6 @@ def main():
             ada.get_arm_state_space(),
             ada.get_arm_skeleton(),
             collision_free_constraint)
-
     # easy goal
     adaRRT = AdaRRT(
         start_state=np.array(armHome),
@@ -225,7 +280,6 @@ def main():
         goal_precision=eps)
 
     rospy.sleep(1.0)
-
     path = adaRRT.build()
     if path is not None:
         print("Path waypoints:")
