@@ -19,6 +19,7 @@ class AdaRRT():
         """
         A node for a doubly-linked tree structure.
         """
+
         def __init__(self, state, parent):
             """
             :param state: np.array of a state in the search space.
@@ -60,7 +61,7 @@ class AdaRRT():
                  joint_upper_limits=None,
                  ada_collision_constraint=None,
                  step_size=0.25,
-                 goal_precision=1.0,
+                 goal_precision=0.2,
                  max_iter=10000):
         """
         :param start_state: Array representing the starting state.
@@ -107,7 +108,12 @@ class AdaRRT():
         for k in range(self.max_iter):
             print("iteration: " + str(k))
             # FILL in your code here
-            sample = self._get_random_sample()
+            sample = None  # self._get_random_sample()
+            if np.random.randint(10) <= 1:
+                sample = self._get_random_sample_near_goal()
+            else:
+                sample = self._get_random_sample()
+
             nearest_neighbor = self._get_nearest_neighbor(sample)
             new_node = self._extend_sample(sample, neighbor=nearest_neighbor)
             if new_node and self._check_for_completion(new_node):
@@ -133,8 +139,25 @@ class AdaRRT():
             sample[i] = np.random.uniform(self.joint_lower_limits[i], self.joint_upper_limits[i], 1)
         return sample
 
+    def _get_random_sample_near_goal(self):
+        sample = np.zeros(len(self.joint_lower_limits))
+
+        sample_range = np.array([0.05, 0.05, 0.05, 0.05, 0.05, 0.05])
+        goal_lower_bound = copy.deepcopy(self.goal.state) - sample_range
+        for i in range(len(self.joint_lower_limits)):
+            if goal_lower_bound[i] <= self.joint_lower_limits[i]:
+                goal_lower_bound[i] -= self.joint_lower_limits[i]
+        goal_upper_bound = copy.deepcopy(self.goal.state) + sample_range
+        for i in range(len(self.joint_lower_limits)):
+            if goal_upper_bound[i] >= self.joint_upper_limits[i]:
+                goal_upper_bound[i] -= self.joint_upper_limits[i]
+
+        for i in range(len(self.joint_lower_limits)):
+            sample[i] = np.random.uniform(goal_lower_bound[i], goal_upper_bound[i], 1)
+        return sample
+
     def _get_dist(self, node1, sample):
-        dist = np.sqrt(sum(np.square(sample-node1)))
+        dist = np.sqrt(sum(np.square(sample - node1)))
         return dist
 
     def _get_nearest_neighbor(self, sample):
@@ -168,9 +191,9 @@ class AdaRRT():
         """
         # FILL in your code here
         neighbor_vec = neighbor.state
-        direct = sample-neighbor_vec
-        direct = direct/np.linalg.norm(direct)
-        new_node_state = direct*self.step_size + neighbor_vec
+        direct = sample - neighbor_vec
+        direct = direct / np.linalg.norm(direct)
+        new_node_state = direct * self.step_size + neighbor_vec
         if self._check_for_collision(new_node_state) is True:
             return None
         new_node = AdaRRT.Node(new_node_state, neighbor)
@@ -263,13 +286,13 @@ def main():
     table = world.add_body_from_urdf(tableURDFUri, tablePose)
     # add collision constraints
     collision_free_constraint = ada.set_up_collision_detection(
-            ada.get_arm_state_space(),
-            ada.get_arm_skeleton(),
-            [can, table])
+        ada.get_arm_state_space(),
+        ada.get_arm_skeleton(),
+        [can, table])
     full_collision_constraint = ada.get_full_collision_constraint(
-            ada.get_arm_state_space(),
-            ada.get_arm_skeleton(),
-            collision_free_constraint)
+        ada.get_arm_state_space(),
+        ada.get_arm_skeleton(),
+        collision_free_constraint)
     # easy goal
     adaRRT = AdaRRT(
         start_state=np.array(armHome),
@@ -296,6 +319,7 @@ def main():
         raw_input('Press ENTER to execute trajectory and exit')
         ada.execute_trajectory(traj)
         rospy.sleep(1.0)
+
 
 if __name__ == '__main__':
     main()
