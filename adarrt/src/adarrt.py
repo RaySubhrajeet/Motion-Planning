@@ -268,7 +268,7 @@ def main():
     armHome = [-1.5, 3.22, 1.23, -2.19, 1.8, 1.2]
     goalConfig = [-1.72, 4.44, 2.02, -2.04, 2.66, 1.39]
     delta = 0.25
-    eps = 1.0
+    eps = 0.2
 
     if sim:
         ada.set_positions(goalConfig)
