@@ -146,11 +146,11 @@ class AdaRRT():
         goal_lower_bound = copy.deepcopy(self.goal.state) - sample_range
         for i in range(len(self.joint_lower_limits)):
             if goal_lower_bound[i] <= self.joint_lower_limits[i]:
-                goal_lower_bound[i] -= self.joint_lower_limits[i]
+                goal_lower_bound[i] = self.joint_lower_limits[i]
         goal_upper_bound = copy.deepcopy(self.goal.state) + sample_range
         for i in range(len(self.joint_lower_limits)):
             if goal_upper_bound[i] >= self.joint_upper_limits[i]:
-                goal_upper_bound[i] -= self.joint_upper_limits[i]
+                goal_upper_bound[i] = self.joint_upper_limits[i]
 
         for i in range(len(self.joint_lower_limits)):
             sample[i] = np.random.uniform(goal_lower_bound[i], goal_upper_bound[i], 1)
